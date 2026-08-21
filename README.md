@@ -116,6 +116,22 @@ curl -i -X DELETE http://localhost:3000/tasks/4
 HTTP/1.1 204 No Content
 ```
 
+## SQLite
+
+The API uses SQLite with `better-sqlite3` for persistent task storage.
+
+The database is stored in `tasks.db` and is created automatically when the application starts. Unlike the previous in-memory implementation, tasks persist across server restarts.
+
+### Database operations
+
+The API uses SQL for all CRUD operations:
+
+### Example SQL query
+
+```sql
+SELECT * FROM tasks WHERE done = 1;
+```
+
 ## Swagger UI
 
 Open `http://localhost:3000/docs` in your browser.
