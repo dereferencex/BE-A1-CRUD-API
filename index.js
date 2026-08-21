@@ -80,11 +80,17 @@ app.post('/tasks',(req,res)=>{
         })
     }
 
-    const id = tasks.length === 0 ? 1 : Math.max(...tasks.map(t => t.id))+1;
-    const task = {id , title: String(title), done: false}
+    const insert = db.prepare(
+    'INSERT INTO tasks (title, done) VALUES (?, ?)'
+    );
 
-    tasks.push(task)
-    res.status(201).json(task)
+    const result = insert.run(String(title).trim(), 0);
+
+    const row = db
+    .prepare('SELECT * FROM tasks WHERE id = ?')
+    .get(result.lastInsertRowid);
+
+    res.status(201).json(rowToTask(row));
 })
 
 app.put('/tasks/:id',(req,res)=>{
