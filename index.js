@@ -95,15 +95,17 @@ app.post('/tasks',(req,res)=>{
 
 app.put('/tasks/:id',(req,res)=>{
     const id = Number(req.params.id);
-    const task = tasks.find(t => t.id === id);
+    const task = db.prepare('SELECT * FROM tasks WHERE id = ?').get(id);
+
 
     if(!task){
         return res.status(404).json({ error: `Task ${id} not found`});
     }
 
-    const {title,done} = req.body ?? {};
-    const hasTitle = "title" in req.body ?? {};
-    const hasDone = "done" in req.body ?? {};
+    const body = req.body ?? {};
+    const { title, done } = body;
+    const hasTitle = 'title' in body;
+    const hasDone = 'done' in body;
 
     if(!hasTitle && !hasDone) {
     return res.status(400).json({ error: 'request body must include title and/or done' });
@@ -123,18 +125,33 @@ app.put('/tasks/:id',(req,res)=>{
     task.done = done;
   }
 
-  res.json(task);
+  const newTitle = hasTitle ? String(title).trim() : task.title;
+  const newDone = hasDone ? done : Boolean(task.done);
+
+  db.prepare(
+    'UPDATE tasks SET title = ?, done = ? WHERE id = ?'
+  ).run(newTitle, newDone ? 1 : 0, id);
+
+  const updatedTask = db
+    .prepare('SELECT * FROM tasks WHERE id = ?')
+    .get(id);
+
+  res.json(rowToTask(updatedTask));
 });
 
 app.delete('/tasks/:id', (req, res) => {
   const id = Number(req.params.id);
-  const index = tasks.findIndex((t) => t.id === id);
 
-  if(index === -1){
-    return res.status(404).json({ error: `Task ${id} not found` });
+  const result = db
+    .prepare('DELETE FROM tasks WHERE id = ?')
+    .run(id);
+
+  if (result.changes === 0) {
+    return res.status(404).json({
+      error: `Task ${id} not found`
+    });
   }
 
-  tasks.splice(index, 1);
   res.status(204).send();
 });
 
