@@ -1,4 +1,5 @@
 const express = require('express');
+const Database = require('better-sqlite3');
 const swaggerUi = require('swagger-ui-express');
 const openApiSpec = require('./openapi.json');
 
@@ -8,11 +9,35 @@ app.use(express.json());
 
 app.use('/docs', swaggerUi.serve, swaggerUi.setup(openApiSpec));
 
+const db = new Database('tasks.db');
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS tasks (
+  id INTEGER PRIMARY KEY,
+  title TEXT NOT NULL,
+  done INTEGER NOT NULL DEFAULT 0
+  )
+`);
+
 let tasks = [
   { id: 1, title: 'Buy milk', done: false },
   { id: 2, title: 'Write code', done: true },
   { id: 3, title: 'Go for a walk', done: false },
 ];
+
+const count = db.prepare('SELECT COUNT(*) AS count FROM tasks').get().count;
+
+if (count === 0) {
+  const insert = db.prepare(
+    'INSERT INTO tasks (id, title, done) VALUES (?, ?, ?)'
+  );
+
+  db.transaction(() => {
+    for (const task of tasks) {
+      insert.run(task.id, task.title, task.done ? 1 : 0);
+    }
+  })();
+}
 
 app.get('/', (req, res) => {
   res.json({ name: 'Task API', version: '1.0', endpoints: ['/tasks'] });
@@ -36,7 +61,7 @@ app.get('/tasks/:id', (req, res) => {
 app.post('/tasks',(req,res)=>{
     const {title} = req.body;
 
-    if(title === undefined || title === null || String(title).trim === ''){
+    if(title === undefined || title === null || String(title).trim() === ''){
         return res.status(400).json({
             error: 'title is required and cannot be empty'
         })
