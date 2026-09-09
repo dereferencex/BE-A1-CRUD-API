@@ -1,56 +1,53 @@
-# CRUD API
+# Task API
 
-A simple Express.js REST API for managing tasks. Built as an internship project.
+A simple Express.js REST API for managing tasks, backed by Postgres. Built as an internship project.
 
-## Install & Run
+On startup the app connects with `DATABASE_URL`, creates the `tasks` table if it doesn't exist, and seeds three example tasks only if the table is empty.
+
+## Run everything (one command)
+
+```bash
+cp .env.example .env
+docker compose up
+```
+
+The API starts at `http://localhost:3000`. Swagger UI is available at `/docs`.
+
+To run just the API locally against your own Postgres instead:
 
 ```bash
 npm install && node index.js
 ```
 
-The server starts at `http://localhost:3000`. Swagger UI is available at `/docs`.
+## Configuration
+
+All settings live in `.env` — copy the template first:
+
+```bash
+cp .env.example .env
+```
+
+| Variable     | Used for                                              | Example                                      |
+|--------------|-------------------------------------------------------|----------------------------------------------|
+| `DATABASE_URL` | Postgres connection string used by `db.js` on startup | `postgres://postgres:dev@localhost:5432/tasks` |
+
+Under `docker compose`, the `api` service overrides `DATABASE_URL` to reach the database by its service name (`postgres://postgres:dev@db:5432/tasks`), so no extra setup is needed there.
 
 ## Endpoints
 
-| Method | Path         | Description               |
-|--------|--------------|---------------------------|
-| GET    | `/`          | API info                  |
-| GET    | `/health`    | Health check              |
-| GET    | `/tasks`     | List all tasks            |
-| GET    | `/tasks/:id` | Get a task by ID          |
-| POST   | `/tasks`     | Create a task             |
-| PUT    | `/tasks/:id` | Update a task             |
-| DELETE | `/tasks/:id` | Delete a task             |
+| Method | Path         | Description          | Success |
+|--------|--------------|----------------------|---------|
+| GET    | `/`          | API info             | `200`   |
+| GET    | `/health`    | Health check         | `200`   |
+| GET    | `/tasks`     | List all tasks       | `200`   |
+| GET    | `/tasks/:id` | Get a task by ID     | `200` (`404` if unknown) |
+| POST   | `/tasks`     | Create a task        | `201` (`400` if title missing/empty) |
+| PUT    | `/tasks/:id` | Update a task        | `200` (`404` if unknown) |
+| DELETE | `/tasks/:id` | Delete a task        | `204` (`404` if unknown) |
 
-## Examples
+Unknown task ids return `404` with `{ "error": "Task not found" }`.
 
-### GET `/` — API info
-
-```bash
-curl -i http://localhost:3000/
-```
-
-```
-HTTP/1.1 200 OK
-Content-Type: application/json; charset=utf-8
-
-{"name":"Task API","version":"1.0","endpoints":["/tasks"]}
-```
-
-### GET `/health` — Health check
-
-```bash
-curl -i http://localhost:3000/health
-```
-
-```
-HTTP/1.1 200 OK
-Content-Type: application/json; charset=utf-8
-
-{"status":"ok"}
-```
-
-### GET `/tasks` — List all tasks
+## Example
 
 ```bash
 curl -i http://localhost:3000/tasks
@@ -58,79 +55,37 @@ curl -i http://localhost:3000/tasks
 
 ```
 HTTP/1.1 200 OK
+X-Powered-By: Express
 Content-Type: application/json; charset=utf-8
+Content-Length: 226
+ETag: W/"e2-TbQnG1MycFp+eh0jMZnhBNnGmJ8"
+Date: Wed, 09 Sep 2026 10:41:20 GMT
+Connection: keep-alive
+Keep-Alive: timeout=5
 
-[{"id":1,"title":"Buy milk","done":false},{"id":2,"title":"Write code","done":true},{"id":3,"title":"Go for a walk","done":false}]
+[{"id":1,"title":"Buy milk","done":false},{"id":2,"title":"Write code","done":true},{"id":3,"title":"Go for a walk","done":false},{"id":4,"title":"Docker task one","done":false},{"id":5,"title":"Docker task two","done":false}]
 ```
 
-### GET `/tasks/1` — Get a task by ID
+## Database
 
-```bash
-curl -i http://localhost:3000/tasks/1
-```
-
-```
-HTTP/1.1 200 OK
-Content-Type: application/json; charset=utf-8
-
-{"id":1,"title":"Buy milk","done":false}
-```
-
-### POST `/tasks` — Create a task
-
-```bash
-curl -i -X POST http://localhost:3000/tasks \
-  -H 'Content-Type: application/json' \
-  -d '{"title":"Test task"}'
-```
-
-```
-HTTP/1.1 201 Created
-Content-Type: application/json; charset=utf-8
-
-{"id":4,"title":"Test task","done":false}
-```
-
-### PUT `/tasks/1` — Update a task
-
-```bash
-curl -i -X PUT http://localhost:3000/tasks/1 \
-  -H 'Content-Type: application/json' \
-  -d '{"done":true}'
-```
-
-```
-HTTP/1.1 200 OK
-Content-Type: application/json; charset=utf-8
-
-{"id":1,"title":"Buy milk","done":true}
-```
-
-### DELETE `/tasks/4` — Delete a task
-
-```bash
-curl -i -X DELETE http://localhost:3000/tasks/4
-```
-
-```
-HTTP/1.1 204 No Content
-```
-
-## SQLite
-
-The API uses SQLite with `better-sqlite3` for persistent task storage.
-
-The database is stored in `tasks.db` and is created automatically when the application starts. Unlike the previous in-memory implementation, tasks persist across server restarts.
-
-### Database operations
-
-The API uses SQL for all CRUD operations:
-
-### Example SQL query
+The stack runs Postgres (`db` service, data kept in the `taskdata` volume) with one table:
 
 ```sql
-SELECT * FROM tasks WHERE done = 1;
+CREATE TABLE IF NOT EXISTS tasks (
+  id SERIAL PRIMARY KEY,
+  title TEXT,
+  done BOOLEAN
+);
 ```
+
+Inspect it with:
+
+```bash
+docker exec -it <db-container> psql -U postgres -d tasks -c "\dt"
+docker exec -it <db-container> psql -U postgres -d tasks -c "SELECT * FROM tasks ORDER BY id;"
+```
+
+![Tasks table in Postgres](screenshots/database.png)
 
 ## Swagger UI
 
