@@ -1,5 +1,4 @@
 const express = require('express');
-const Database = require('better-sqlite3');
 const swaggerUi = require('swagger-ui-express');
 const openApiSpec = require('./openapi.json');
 const pgDb = require('./db');
@@ -9,36 +8,6 @@ const PORT = 3000;
 app.use(express.json());
 
 app.use('/docs', swaggerUi.serve, swaggerUi.setup(openApiSpec));
-
-const db = new Database('tasks.db');
-
-db.exec(`
-  CREATE TABLE IF NOT EXISTS tasks (
-  id INTEGER PRIMARY KEY,
-  title TEXT NOT NULL,
-  done INTEGER NOT NULL DEFAULT 0
-  )
-`);
-
-let tasks = [
-  { id: 1, title: 'Buy milk', done: false },
-  { id: 2, title: 'Write code', done: true },
-  { id: 3, title: 'Go for a walk', done: false },
-];
-
-const count = db.prepare('SELECT COUNT(*) AS count FROM tasks').get().count;
-
-if (count === 0) {
-  const insert = db.prepare(
-    'INSERT INTO tasks (id, title, done) VALUES (?, ?, ?)'
-  );
-
-  db.transaction(() => {
-    for (const task of tasks) {
-      insert.run(task.id, task.title, task.done ? 1 : 0);
-    }
-  })();
-}
 
 app.get('/', (req, res) => {
   res.json({ name: 'Task API', version: '1.0', endpoints: ['/tasks'] });
@@ -70,7 +39,7 @@ app.get('/tasks/:id', async (req, res) => {
   res.json(rowToTask(row));
 });
 
-app.post('/tasks',(req,res)=>{
+app.post('/tasks', async (req,res)=>{
     const {title} = req.body;
 
     if(title === undefined || title === null || String(title).trim() === ''){
@@ -79,22 +48,14 @@ app.post('/tasks',(req,res)=>{
         })
     }
 
-    const insert = db.prepare(
-    'INSERT INTO tasks (title, done) VALUES (?, ?)'
-    );
-
-    const result = insert.run(String(title).trim(), 0);
-
-    const row = db
-    .prepare('SELECT * FROM tasks WHERE id = ?')
-    .get(result.lastInsertRowid);
+    const row = await pgDb.createTask(String(title).trim());
 
     res.status(201).json(rowToTask(row));
 })
 
-app.put('/tasks/:id',(req,res)=>{
+app.put('/tasks/:id', async (req,res)=>{
     const id = Number(req.params.id);
-    const task = db.prepare('SELECT * FROM tasks WHERE id = ?').get(id);
+    const task = await pgDb.getTaskById(id);
 
 
     if(!task){
@@ -127,25 +88,17 @@ app.put('/tasks/:id',(req,res)=>{
   const newTitle = hasTitle ? String(title).trim() : task.title;
   const newDone = hasDone ? done : Boolean(task.done);
 
-  db.prepare(
-    'UPDATE tasks SET title = ?, done = ? WHERE id = ?'
-  ).run(newTitle, newDone ? 1 : 0, id);
-
-  const updatedTask = db
-    .prepare('SELECT * FROM tasks WHERE id = ?')
-    .get(id);
+  const updatedTask = await pgDb.updateTask(id, newTitle, newDone);
 
   res.json(rowToTask(updatedTask));
 });
 
-app.delete('/tasks/:id', (req, res) => {
+app.delete('/tasks/:id', async (req, res) => {
   const id = Number(req.params.id);
 
-  const result = db
-    .prepare('DELETE FROM tasks WHERE id = ?')
-    .run(id);
+  const rowCount = await pgDb.deleteTask(id);
 
-  if (result.changes === 0) {
+  if (rowCount === 0) {
     return res.status(404).json({
       error: `Task ${id} not found`
     });
