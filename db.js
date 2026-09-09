@@ -45,14 +45,26 @@ async function initDb() {
   }
 }
 
+async function getAllTasks() {
+  const { rows } = await pool.query('SELECT * FROM tasks');
+  return rows;
+}
+
+async function getTaskById(id) {
+  const { rows } = await pool.query('SELECT * FROM tasks WHERE id = $1', [id]);
+  return rows[0] || null;
+}
+
+module.exports = { pool, initDb, getAllTasks, getTaskById };
+
 initDb()
   .then(() => {
-    console.log('Database ready: tasks table ensured, seeded if empty.');
+    if (require.main === module) {
+      console.log('Database ready: tasks table ensured, seeded if empty.');
+      return pool.end();
+    }
   })
   .catch((err) => {
     console.error('Database init failed:', err.message || err);
-    process.exitCode = 1;
-  })
-  .finally(() => {
-    pool.end();
+    process.exit(1);
   });

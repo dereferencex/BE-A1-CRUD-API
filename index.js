@@ -2,6 +2,7 @@ const express = require('express');
 const Database = require('better-sqlite3');
 const swaggerUi = require('swagger-ui-express');
 const openApiSpec = require('./openapi.json');
+const pgDb = require('./db');
 
 const app = express();
 const PORT = 3000;
@@ -51,16 +52,14 @@ function rowToTask(row) {
   return { id: row.id, title: row.title, done: Boolean(row.done) };
 }
 
-app.get('/tasks', (req, res) => {
-  const rows = db.prepare('SELECT * FROM tasks').all();
+app.get('/tasks', async (req, res) => {
+  const rows = await pgDb.getAllTasks();
   res.json(rows.map(rowToTask));
 });
 
-app.get('/tasks/:id', (req, res) => {
+app.get('/tasks/:id', async (req, res) => {
   const id = parseInt(req.params.id);
-  const row = db
-    .prepare('SELECT * FROM tasks WHERE id = ?')
-    .get(id);
+  const row = await pgDb.getTaskById(id);
 
   if (!row) {
     return res.status(404).json({
